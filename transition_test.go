@@ -1,8 +1,8 @@
 package transition
 
 import (
-	"github.com/hslam/atomic"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
