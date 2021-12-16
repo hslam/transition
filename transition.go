@@ -4,6 +4,11 @@
 // Package transition implements smooth transition.
 package transition
 
+import (
+	"github.com/hslam/scheduler"
+	"sync"
+)
+
 const lastsSize = 4
 
 //Transition implements smooth transition.
@@ -13,11 +18,36 @@ type Transition struct {
 	cursor      int
 	count       int
 	concurrency func() int
+	wg          sync.WaitGroup
+	pipeline    scheduler.Scheduler
 }
 
 // NewTransition returns a new transition.
 func NewTransition(threshold int, concurrency func() int) *Transition {
-	return &Transition{threshold: threshold, concurrency: concurrency}
+	return &Transition{
+		threshold:   threshold,
+		concurrency: concurrency,
+		pipeline:    scheduler.New(1, &scheduler.Options{Threshold: 2}),
+	}
+}
+
+// Close closes the smooth transition.
+func (w *Transition) Close() {
+	w.pipeline.Close()
+}
+
+// Smooth ensures a smooth transition from the low function to the high function.
+func (w *Transition) Smooth(low func(), high func()) {
+	w.smooth(func() {
+		w.wg.Wait()
+		low()
+	}, func() {
+		w.wg.Add(1)
+		w.pipeline.Schedule(func() {
+			high()
+			w.wg.Done()
+		})
+	})
 }
 
 func (w *Transition) batch() (n int) {
@@ -32,8 +62,7 @@ func (w *Transition) batch() (n int) {
 	return max
 }
 
-// Smooth ensures a smooth transition from the low function to the high function.
-func (w *Transition) Smooth(low func(), high func()) {
+func (w *Transition) smooth(low func(), high func()) {
 	batch := w.batch()
 	w.count++
 	if batch <= w.threshold {

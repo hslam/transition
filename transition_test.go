@@ -22,10 +22,13 @@ func TestTransition(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				for atomic.AddUint64(&count, 1) <= uint64(c)*base {
+					wg.Add(1)
 					low := func() {
+						defer wg.Done()
 						atomic.AddUint64(&l, 1)
 					}
 					high := func() {
+						defer wg.Done()
 						atomic.AddUint64(&h, 1)
 					}
 					lock.Lock()
@@ -35,6 +38,7 @@ func TestTransition(t *testing.T) {
 			}()
 		}
 		wg.Wait()
+		tran.Close()
 		if l != lows[c-1]*base {
 			t.Errorf("expect %d, got %d", lows[c-1]*base, l)
 		} else if h != highs[c-1]*base {
